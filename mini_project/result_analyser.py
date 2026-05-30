@@ -22,9 +22,6 @@ from reportlab.platypus import (
 )
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 
-# ─────────────────────────────────────────────
-# CONFIGURATION
-# ─────────────────────────────────────────────
 SUBJECTS   = ["OOP", "DBMS", "DSA", "Pandas"]
 LEVELS     = ["Easy", "Intermediate", "Complex"]
 NUM_QUESTIONS = 20          # total questions
@@ -46,9 +43,6 @@ OUT_DIR = "/mnt/user-data/outputs/result_analysis"
 os.makedirs(OUT_DIR, exist_ok=True)
 
 
-# ─────────────────────────────────────────────
-# HELPER - grade from percentage
-# ─────────────────────────────────────────────
 def get_grade(pct):
     for threshold, label in GRADE_TABLE:
         if pct >= threshold:
@@ -56,10 +50,7 @@ def get_grade(pct):
     return "F - Fail"
 
 
-# ─────────────────────────────────────────────
-# STEP 1 - Build Question Bank Excel
-# ─────────────────────────────────────────────
-def build_question_bank():
+def create_question_bank():
     """
     Columns:
         Q_No | Question | Type (MCSR/MCMR) | Subject | Level |
@@ -129,10 +120,7 @@ def _style_question_sheet(ws):
     ws.row_dimensions[1].height = 28
 
 
-# ─────────────────────────────────────────────
-# STEP 2 - Build Student Responses Excel
-# ─────────────────────────────────────────────
-def build_student_responses(qdf):
+def create_student_responses(questions_df):
     """
     One row per student.
     Columns: Student_ID | Name | Total_Time_sec |
@@ -145,7 +133,7 @@ def build_student_responses(qdf):
     for sid, name in enumerate(student_names, start=1):
         row = {"Student_ID": f"S{sid:03d}", "Name": name}
         total_time = 0
-        for _, q in qdf.iterrows():
+        for _, q in questions_df.iterrows():
             q_no    = q["Q_No"]
             correct = q["Correct_Answer"]
             q_type  = q["Type"]
@@ -204,16 +192,13 @@ def _style_response_sheet(ws):
     ws.column_dimensions["B"].width = 18
 
 
-# ─────────────────────────────────────────────
-# STEP 3 - Analyse one student
-# ─────────────────────────────────────────────
-def analyse_student(student_row, qdf):
+def analyze_student(student_row, questions_df):
     sid   = student_row["Student_ID"]
     name  = student_row["Name"]
     total_time = student_row["Total_Time_sec"]
 
     records = []
-    for _, q in qdf.iterrows():
+    for _, q in questions_df.iterrows():
         q_no    = q["Q_No"]
         correct = q["Correct_Answer"]
         given   = str(student_row.get(f"Q{q_no}_Answer", "")).strip()
@@ -306,9 +291,6 @@ def analyse_student(student_row, qdf):
     }
 
 
-# ─────────────────────────────────────────────
-# STEP 4a - Student PDF
-# ─────────────────────────────────────────────
 BRAND_BLUE  = colors.HexColor("#1F4E79")
 BRAND_LIGHT = colors.HexColor("#DEEAF1")
 ACCENT      = colors.HexColor("#2E75B6")
@@ -462,10 +444,7 @@ def generate_student_pdf(result, output_dir):
     return path
 
 
-# ─────────────────────────────────────────────
-# STEP 4b - Examiner Summary PDF
-# ─────────────────────────────────────────────
-def generate_examiner_pdf(all_results, output_dir):
+def create_examiner_report(all_results, output_dir):
     s    = _styles()
     path = os.path.join(output_dir, "EXAMINER_Summary.pdf")
     doc  = SimpleDocTemplate(path, pagesize=A4,
@@ -550,29 +529,26 @@ def generate_examiner_pdf(all_results, output_dir):
     return path
 
 
-# ─────────────────────────────────────────────
-# MAIN
-# ─────────────────────────────────────────────
 def main():
     print("\n=== Result Analysis System ===\n")
 
     print("Step 1 - Building question bank …")
-    qdf = build_question_bank()
+    questions_df = create_question_bank()
 
     print("\nStep 2 - Simulating student responses …")
-    sdf = build_student_responses(qdf)
+    responses_df = create_student_responses(questions_df)
 
     print("\nStep 3 - Analysing results …")
     all_results = []
-    for _, srow in sdf.iterrows():
-        res = analyse_student(srow, qdf)
+    for _, srow in responses_df.iterrows():
+        res = analyze_student(srow, questions_df)
         all_results.append(res)
         print(f"  {res['Student_ID']} {res['Name']:20s}  {res['Percentage']}%  {res['Grade']}")
 
     print("\nStep 4 - Generating PDFs …")
     for res in all_results:
         generate_student_pdf(res, OUT_DIR)
-    generate_examiner_pdf(all_results, OUT_DIR)
+    create_examiner_report(all_results, OUT_DIR)
 
     print(f"\nAll files saved to: {OUT_DIR}")
     print("   question_bank.xlsx")
